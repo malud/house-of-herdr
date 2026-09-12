@@ -48,8 +48,8 @@ macOS requires manual grants in **System Settings → Privacy & Security**:
   Herdr-side bindings do not need it.
 
 Verify everything with `node dist/doctor.js` from the plugin directory; it
-names exactly what is missing. If the daemon logs `privilege violation`
-after an automatic start, launch it once from your terminal
+names exactly what is missing. If the daemon logs `privilege violation` or
+`not permitted` after an automatic start, launch it once from your terminal
 (`node dist/start.js`).
 
 ## Controls (defaults)

@@ -47,10 +47,16 @@ export interface DeviceHandlers {
 }
 
 // Maps IOKit open failures to actionable states: 0xE00002C1 (privilege
-// violation) is a missing Input Monitoring grant; 0xE00002C5 (exclusive
-// access) means another host, in practice the ChatGPT app, holds the device.
+// violation) and 0xE00002E2 (not permitted) are a missing Input Monitoring
+// grant; 0xE00002C5 (exclusive access) means another host, in practice the
+// ChatGPT app, holds the device.
 export function classifyOpenError(message: string): DeviceState {
-  if (message.includes("privilege violation") || message.includes("E00002C1")) {
+  if (
+    message.includes("privilege violation") ||
+    message.includes("E00002C1") ||
+    message.includes("not permitted") ||
+    message.includes("E00002E2")
+  ) {
     return "permission_required";
   }
   if (message.includes("exclusive access") || message.includes("E00002C5")) {
