@@ -112,7 +112,7 @@ export class Controls {
   private dispatchHid(key: string, act: number): void {
     const agentKey = /^AG0([0-5])$/.exec(key);
     if (agentKey) {
-      if (act === 1) this.focusSlot(Number(agentKey[1]));
+      if (act === 1) void this.focusSlot(Number(agentKey[1]));
       return;
     }
     if (act === 0) {
@@ -296,9 +296,17 @@ export class Controls {
     }
   }
 
-  private focusSlot(slot: number): void {
+  // herdr 0.9.0 applies agent.focus on the server without moving attached
+  // clients; pane.focus does move them, so it goes first. agent.focus still
+  // marks a done agent as seen.
+  private async focusSlot(slot: number): Promise<void> {
     const paneId = this.deps.slotPaneId(slot);
     if (!paneId) return;
+    try {
+      await this.herdr.request("pane.focus", { pane_id: paneId });
+    } catch (error) {
+      this.log(`pane.focus failed: ${(error as Error).message}`);
+    }
     this.run("agent.focus", { target: paneId });
   }
 

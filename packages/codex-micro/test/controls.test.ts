@@ -225,14 +225,15 @@ describe("dial modes", () => {
 });
 
 describe("agent keys", () => {
-  it("focuses the slotted agent on press only", () => {
+  it("moves the client to the pane, then focuses the agent, on press only", async () => {
     const { controls, herdr } = setup();
     controls.onHid("AG02", 1);
     controls.onHid("AG02", 0);
-    expect(herdr.request).toHaveBeenCalledTimes(1);
-    expect(herdr.request).toHaveBeenCalledWith("agent.focus", {
-      target: "pane-2",
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(herdr.request.mock.calls).toEqual([
+      ["pane.focus", { pane_id: "pane-2" }],
+      ["agent.focus", { target: "pane-2" }],
+    ]);
   });
 });
 
