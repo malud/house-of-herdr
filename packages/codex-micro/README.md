@@ -9,6 +9,8 @@ Use your Work Louder Codex Micro (OpenAI edition) natively with [Herdr](https://
 - The six Agent Keys light up with live agent statuses and focus their agent on press.
 - The dial, joystick, and command keys control Herdr: workspaces, panes, tabs, and more.
 
+The Work Louder Creator Micro 2 speaks the same protocol and works as well.
+
 > **How it works**: Work Louder's Input app does not let you configure the
 > device's first layer, it is reserved for the Codex integration, so the
 > plugin talks to the device directly, doing what the ChatGPT desktop app
@@ -17,7 +19,9 @@ Use your Work Louder Codex Micro (OpenAI edition) natively with [Herdr](https://
 > ChatGPT app is closed; while it runs, the plugin yields the device
 > automatically and reclaims it when the app quits.
 
-**Requirements**: macOS ≥ 14, Herdr ≥ 0.7.5, Node ≥ 22.
+**Requirements**: macOS ≥ 14, Herdr ≥ 0.7.5, Node ≥ 22. Creator Micro 2:
+[firmware ≥ 0.6.1](https://github.com/worklouder/cm-v2-fw-releases/releases/tag/v0.6.1),
+which added the Codex layer.
 
 ## Install
 
