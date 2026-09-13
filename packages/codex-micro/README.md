@@ -49,8 +49,17 @@ macOS requires manual grants in **System Settings → Privacy & Security**:
 
 Verify everything with `node dist/doctor.js` from the plugin directory; it
 names exactly what is missing. If the daemon logs `privilege violation` or
-`not permitted` after an automatic start, launch it once from your terminal
-(`node dist/start.js`).
+`not permitted` after an automatic start and Secure Keyboard Entry is off,
+launch it once from your terminal (`node dist/start.js`).
+
+Both grants in place and the Codex layer still dark or unresponsive? Check
+**Secure Keyboard Entry**. While any app has it on (a focused password field
+in a browser, a locked password manager, Terminal's or iTerm's menu item, the
+lock screen), macOS denies raw HID access to keyboard-class devices with the
+same `not permitted` error: the lights freeze and the Codex layer's keys go
+dead, while the ordinary keyboard layers keep typing. The daemon logs the app
+holding it and the doctor names it. Leave the password field, or unlock or
+quit that app; the daemon repaints the keys on its own.
 
 ## Controls (defaults)
 
