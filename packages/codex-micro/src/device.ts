@@ -6,12 +6,19 @@ import { HIDAsync, devicesAsync, type Device } from "node-hid";
 import { CHANNEL_RPC, Reassembler, encodeMessage } from "./framing.js";
 
 export const VENDOR_ID = 0x303a;
-// Codex Micro and the two Creator Micro 2 revisions; the latter speak the
-// vendor protocol from firmware 0.6.1 on.
-export const PRODUCT_IDS = new Set([0x8360, 0x8297, 0x8298]);
+// Codex Micro, then the Creator Micro 2's USB and Bluetooth variants (per
+// Espressif's PID registry), which speak the same vendor protocol. The order
+// is the connect preference when more than one is plugged in.
+export const PRODUCT_IDS = [0x8360, 0x8297, 0x8298];
 export const USAGE_PAGE = 0xff00;
 const RECONNECT_MIN_MS = 3000;
 const RECONNECT_JITTER_MS = 5000;
+
+// The oldest firmware verified on hardware. Codex Micro firmware 0.4.1 refused
+// LED writes while macOS Secure Keyboard Entry was on (0.6.3 does not), and
+// the Creator Micro 2 gained the Codex layer in 0.6.1.
+export const MIN_FIRMWARE = [0, 6, 3];
+const STATUS_REQUEST_ID = 7;
 
 export interface ThreadLighting {
   id: number;
@@ -68,13 +75,83 @@ export function classifyOpenError(message: string): DeviceState {
 
 export async function findCandidates(): Promise<Device[]> {
   const devices = await devicesAsync();
-  return devices.filter(
-    (d) =>
-      d.vendorId === VENDOR_ID &&
-      PRODUCT_IDS.has(d.productId) &&
-      d.usagePage === USAGE_PAGE &&
-      d.path,
-  );
+  return devices
+    .filter(
+      (d) =>
+        d.vendorId === VENDOR_ID &&
+        PRODUCT_IDS.includes(d.productId) &&
+        d.usagePage === USAGE_PAGE &&
+        d.path,
+    )
+    .sort(
+      (a, b) =>
+        PRODUCT_IDS.indexOf(a.productId) - PRODUCT_IDS.indexOf(b.productId),
+    );
+}
+
+// "0.6.3", "v0.4.1" or "0.7.0-rc.11" -> [major, minor, patch].
+export function parseFirmwareVersion(version: string): number[] | null {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
+  return match ? match.slice(1).map(Number) : null;
+}
+
+export function firmwareSupported(version: number[]): boolean {
+  for (let i = 0; i < MIN_FIRMWARE.length; i++) {
+    if (version[i] !== MIN_FIRMWARE[i]) return version[i]! > MIN_FIRMWARE[i]!;
+  }
+  return true;
+}
+
+// The version from a device.status reply to our request id; null for any
+// other message on the channel (notifications, replies to other requests).
+export function statusReplyVersion(message: string): string | null {
+  let reply: { id?: unknown; result?: { version?: unknown } } | null;
+  try {
+    reply = JSON.parse(message) as typeof reply;
+  } catch {
+    return null;
+  }
+  const version = reply?.id === STATUS_REQUEST_ID && reply.result?.version;
+  return typeof version === "string" ? version : null;
+}
+
+// Asks the firmware for its version on an open handle; null when no reply
+// arrives in time or the handle fails (node-hid throws an "error" event
+// nobody listens for, which would crash the caller). Works on a non-exclusive
+// handle while the daemon or Input also holds the device, since every open
+// handle receives the reply.
+export function readFirmwareVersion(
+  device: HIDAsync,
+  timeoutMs: number,
+): Promise<string | null> {
+  const reassembler = new Reassembler();
+  return new Promise((resolve) => {
+    const finish = (version: string | null) => {
+      clearTimeout(timer);
+      device.off("data", onData);
+      device.off("error", onError);
+      resolve(version);
+    };
+    const onError = () => finish(null);
+    const onData = (data: Buffer) => {
+      for (const { channel, message } of reassembler.push(data)) {
+        const version = channel === CHANNEL_RPC && statusReplyVersion(message);
+        if (version) return finish(version);
+      }
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    // Listening starts the read loop, so it precedes the request.
+    device.on("data", onData);
+    device.on("error", onError);
+    const request = JSON.stringify({
+      method: "device.status",
+      params: null,
+      id: STATUS_REQUEST_ID,
+    });
+    void (async () => {
+      for (const report of encodeMessage(request)) await device.write(report);
+    })().catch(() => finish(null));
+  });
 }
 
 export class CodexMicro {
@@ -125,8 +202,9 @@ export class CodexMicro {
     this.setState("stopped");
   }
 
-  // Fire-and-forget (the firmware does not reply), serialized through a write
-  // queue so concurrent callers cannot interleave multi-report frames.
+  // Fire-and-forget (the firmware acknowledges with {"result":{"ok":1}}, which
+  // onData ignores), serialized through a write queue so concurrent callers
+  // cannot interleave multi-report frames.
   setThreadLighting(slots: ThreadLighting[]): Promise<void> {
     return this.send("v.oai.thstatus", slots);
   }
@@ -250,9 +328,10 @@ export class CodexMicro {
         continue;
       }
       // The firmware speaks both envelope forms - compact {m,p} for
-      // notifications, long {method,params} for responses. Only notifications
-      // reach this daemon today, but both are real wire formats, so the
-      // long-form fallback stays for whenever request/response returns.
+      // notifications, long {method,params} for responses. Responses do reach
+      // this daemon (lighting acknowledgements, replies to the doctor's
+      // device.status) and fall through below, as they carry no input; both
+      // are real wire formats, so both are read.
       const method = (parsed.method ?? parsed.m) as string | undefined;
       const params = (parsed.params ?? parsed.p) as
         Record<string, unknown> | undefined;

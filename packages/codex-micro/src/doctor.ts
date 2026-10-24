@@ -7,12 +7,21 @@ import { fileURLToPath } from "node:url";
 import { HIDAsync } from "node-hid";
 import { chatGptRunning } from "./chatgpt.js";
 import { daemonAlive, sendCommand } from "./control.js";
-import { classifyOpenError, findCandidates } from "./device.js";
+import {
+  MIN_FIRMWARE,
+  classifyOpenError,
+  findCandidates,
+  firmwareSupported,
+  parseFirmwareVersion,
+  readFirmwareVersion,
+} from "./device.js";
 import { socketPath } from "./herdr.js";
-import { describeSecureInput, secureInputHolder } from "./secure-input.js";
 
 const check = (name: string, ok: boolean, detail: string) =>
   console.log(`${ok ? "✓" : "✗"} ${name}: ${detail}`);
+
+const FIRMWARE_TIMEOUT_MS = 1500;
+const MIN_VERSION = MIN_FIRMWARE.join(".");
 
 // Herdr server reachable?
 const herdrUp = await new Promise<boolean>((resolve) => {
@@ -53,9 +62,10 @@ check(
     : "not running",
 );
 
-// Device present, and can this process open it (Input Monitoring)? Discovery
-// and error classification come from the daemon's own module so a diagnosis
-// here can never drift from what the daemon actually does.
+// Device present, can this process open it (Input Monitoring), and is its
+// firmware recent enough? Discovery, error classification, and the firmware
+// floor come from the daemon's own module so a diagnosis here can never drift
+// from what the daemon actually does.
 await checkDevice();
 
 async function checkDevice(): Promise<void> {
@@ -70,7 +80,7 @@ async function checkDevice(): Promise<void> {
     check(
       "device",
       false,
-      "Codex Micro not found; check power, USB, or Bluetooth",
+      "no Codex Micro or Creator Micro 2 found; check power, USB, or Bluetooth",
     );
     return;
   }
@@ -78,12 +88,14 @@ async function checkDevice(): Promise<void> {
   for (const info of candidates) {
     try {
       const device = await HIDAsync.open(info.path!, { nonExclusive: true });
+      const version = await readFirmwareVersion(device, FIRMWARE_TIMEOUT_MS);
       await device.close();
       check(
         "device",
         true,
         "present and openable (Input Monitoring OK for this terminal)",
       );
+      checkFirmware(version);
       return;
     } catch (error) {
       lastError = error as Error;
@@ -94,7 +106,8 @@ async function checkDevice(): Promise<void> {
     permission_required:
       "open denied: grant Input Monitoring (System Settings → Privacy & Security) to this terminal and to whatever launches the daemon",
     device_busy: "another process holds the device exclusively (ChatGPT app?)",
-    device_absent: "Codex Micro not found; check power, USB, or Bluetooth",
+    device_absent:
+      "no Codex Micro or Creator Micro 2 found; check power, USB, or Bluetooth",
   };
   check(
     "device",
@@ -103,14 +116,26 @@ async function checkDevice(): Promise<void> {
   );
 }
 
-// Secure Keyboard Entry blocks raw HID access with every grant in place, and
-// with the same "not permitted" code a missing grant produces.
-const secureInput = await secureInputHolder();
-check(
-  "secure keyboard entry",
-  secureInput === null,
-  secureInput ? describeSecureInput(secureInput) : "off",
-);
+// No reply is reported without failing: the device itself checked out, and
+// the version is only a likely cause of trouble, not proof of it.
+function checkFirmware(version: string | null): void {
+  const parsed = version && parseFirmwareVersion(version);
+  if (!parsed) {
+    const seen = version ? `"${version}" not recognized` : "unknown";
+    console.log(
+      `? firmware: version ${seen}; ${MIN_VERSION} or newer is required, check it in Work Louder's Input app`,
+    );
+    return;
+  }
+  const ok = firmwareSupported(parsed);
+  check(
+    "firmware",
+    ok,
+    ok
+      ? version
+      : `${version}; update to ${MIN_VERSION} or newer in Work Louder's Input app`,
+  );
+}
 
 // Accessibility (needed for global key and scroll event synthesis).
 const tapkey = fileURLToPath(new URL("../bin/tapkey", import.meta.url));

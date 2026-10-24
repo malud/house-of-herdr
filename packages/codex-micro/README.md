@@ -9,19 +9,35 @@ Use your Work Louder Codex Micro (OpenAI edition) natively with [Herdr](https://
 - The six Agent Keys light up with live agent statuses and focus their agent on press.
 - The dial, joystick, and command keys control Herdr: workspaces, panes, tabs, and more.
 
-The Work Louder Creator Micro 2 speaks the same protocol and works as well.
+> **How it works**: the device's Codex layer sends Codex commands instead of
+> keystrokes and lights its keys with whatever status the host sends. On the
+> Codex Micro that is the first layer, which Work Louder's Input app reserves
+> and does not let you configure; on the Creator Micro 2 it is the layer you
+> set up in Input (see [Devices](#devices)). The plugin talks to the device
+> directly, doing what the ChatGPT desktop app does but for Herdr. The
+> per-key status lights only render while the Codex layer is active, and the
+> device serves one host at a time, so this works while the ChatGPT app is
+> closed; while it runs, the plugin yields the device automatically and
+> reclaims it when the app quits.
 
-> **How it works**: Work Louder's Input app does not let you configure the
-> device's first layer, it is reserved for the Codex integration, so the
-> plugin talks to the device directly, doing what the ChatGPT desktop app
-> does but for Herdr. The per-key status lights only exist on that first
-> layer, and the device serves one host at a time, so this works while the
-> ChatGPT app is closed; while it runs, the plugin yields the device
-> automatically and reclaims it when the app quits.
+**Requirements**: macOS ≥ 14, Herdr ≥ 0.7.5, Node ≥ 22, device firmware ≥ 0.6.3.
 
-**Requirements**: macOS ≥ 14, Herdr ≥ 0.7.5, Node ≥ 22. Creator Micro 2:
-[firmware ≥ 0.6.1](https://github.com/worklouder/cm-v2-fw-releases/releases/tag/v0.6.1),
-which added the Codex layer.
+## Devices
+
+| Device                       | USB product ID                       | Status                              |
+| ---------------------------- | ------------------------------------ | ----------------------------------- |
+| Codex Micro (OpenAI edition) | `0x8360`                             | Supported, tested by the maintainer |
+| Creator Micro 2              | `0x8297` (USB), `0x8298` (Bluetooth) | Community-tested                    |
+
+Every model needs firmware 0.6.3 or newer; update it in Work Louder's Input
+app. `node dist/doctor.js` reports the version the device runs.
+
+The Creator Micro 2 also needs a Codex layer: in Input, assign the Codex
+commands (Agent Keys 1-6, ACT06 to ACT12, the dial, and the joystick) to one
+of its layers, and switch to that layer to use Herdr. The status lights only
+render while it is active.
+
+With more than one model plugged in, the plugin prefers the Codex Micro.
 
 ## Install
 
@@ -49,17 +65,8 @@ macOS requires manual grants in **System Settings → Privacy & Security**:
 
 Verify everything with `node dist/doctor.js` from the plugin directory; it
 names exactly what is missing. If the daemon logs `privilege violation` or
-`not permitted` after an automatic start and Secure Keyboard Entry is off,
-launch it once from your terminal (`node dist/start.js`).
-
-Both grants in place and the Codex layer still dark or unresponsive? Check
-**Secure Keyboard Entry**. While any app has it on (a focused password field
-in a browser, a locked password manager, Terminal's or iTerm's menu item, the
-lock screen), macOS denies raw HID access to keyboard-class devices with the
-same `not permitted` error: the lights freeze and the Codex layer's keys go
-dead, while the ordinary keyboard layers keep typing. The daemon logs the app
-holding it and the doctor names it. Leave the password field, or unlock or
-quit that app; the daemon repaints the keys on its own.
+`not permitted` after an automatic start, launch it once from your terminal
+(`node dist/start.js`).
 
 ## Controls (defaults)
 
