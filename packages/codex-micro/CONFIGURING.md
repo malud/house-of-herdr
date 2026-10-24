@@ -116,8 +116,9 @@ directions keep pane navigation.
    `dial-mode`, the mode collapses back to workspaces (the ring cannot get
    stuck). The `dial-mode` toast additionally
    requires toast delivery enabled in Herdr, which is off by default: set
-   `[ui.toast] delivery = "herdr"` in the Herdr config. The current mode is
-   always visible in the popup header regardless.
+   `[ui.toast] delivery = "herdr"` in the Herdr config. The popup header shows
+   the current mode regardless, whenever the tab has room for it (on a very
+   short tab the popup drops that header line to keep all six keys on screen).
 
 2. **`{"key": "..."}`**: act as a real keyboard key, sent globally to the
    frontmost app. Requires the macOS Accessibility permission. Combo
@@ -193,6 +194,11 @@ description = "codex micro keys"
 
 The popup closes with `q` or Escape; Herdr plugin popups do not close on
 outside clicks.
+
+The popup follows the tab's size: the keypad layout from 110 columns, pairs of
+keys down to 44, one line per key below that; short tabs drop the cwd, then
+workspace, then tab lines, and fall back to one line per key when even the
+name no longer fits in a box.
 
 ## Troubleshooting
 
